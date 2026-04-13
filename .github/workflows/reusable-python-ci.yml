@@ -1,0 +1,81 @@
+name: Reusable Python CI
+
+on:
+  workflow_call:
+    inputs:
+      run_backtests:
+        required: true
+        type: boolean
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------
+      # CHECKOUT
+      # -----------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -----------------------------
+      # SETUP PYTHON (LATEST STABLE)
+      # -----------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # ✅ Latest stable (safe choice)
+
+      # -----------------------------
+      # CACHE DEPENDENCIES
+      # -----------------------------
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('**/uv.lock') }}
+
+      # -----------------------------
+      # INSTALL DEPENDENCIES
+      # -----------------------------
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      # -----------------------------
+      # LINT
+      # -----------------------------
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run pylint core/
+
+      # -----------------------------
+      # TYPE CHECK
+      # -----------------------------
+      - name: Type Check
+        run: |
+          uv run mypy .
+
+      # -----------------------------
+      # TESTS
+      # -----------------------------
+      - name: Run Tests
+        run: |
+          uv run pytest --cov=core --cov-report=xml
+
+      # -----------------------------
+      # COVERAGE GATE
+      # -----------------------------
+      - name: Coverage Check
+        run: |
+          uv run coverage report --fail-under=90
+
+      # -----------------------------
+      # OPTIONAL BACKTESTS
+      # -----------------------------
+      - name: Run Backtests
+        if: inputs.run_backtests == true
+        run: |
+          python backtests/run_all.py
