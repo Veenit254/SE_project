@@ -1,0 +1,91 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"   # Weekly scan (Monday 2 AM UTC)
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------
+      # CHECKOUT (FIXED - FULL HISTORY)
+      # -----------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # ⭐ CRITICAL FIX (prevents ambiguous revision error)
+
+      # -----------------------------
+      # GITLEAKS (FIXED - ENV TOKEN)
+      # -----------------------------
+      - name: Run Gitleaks (PR scan)
+        if: github.event_name == 'pull_request'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+      - name: Run Gitleaks (Full scan on main)
+        if: github.ref == 'refs/heads/main'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+
+      # -----------------------------
+      # OPTIONAL: CLI MODE (ULTRA-STABLE)
+      # Uncomment if you want to bypass action issues completely
+      # -----------------------------
+      # - name: Run Gitleaks CLI (no git dependency)
+      #   run: |
+      #     curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64.tar.gz | tar -xz
+      #     ./gitleaks detect --source . --no-git --redact --verbose
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------
+      # TRUFFLEHOG (LOW FALSE POSITIVES)
+      # -----------------------------
+      - name: Install TruffleHog
+        run: pip install trufflehog
+
+      - name: Run TruffleHog
+        run: trufflehog filesystem . --only-verified
+
+      # -----------------------------
+      # BANDIT (PYTHON SECURITY)
+      # -----------------------------
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit
+        run: bandit -r core/ -ll
+
+      # -----------------------------
+      # DEPENDENCY VULNERABILITY SCAN
+      # -----------------------------
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        run: pip-audit --strict
+
+      # -----------------------------
+      # FINAL STATUS
+      # -----------------------------
+      - name: Security Scan Completed
+        run: echo "All security checks completed"
