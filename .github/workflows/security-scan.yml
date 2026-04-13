@@ -1,0 +1,35 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: TruffleHog
+        run: |
+          pip install trufflehog
+          trufflehog filesystem .
+
+      - name: Bandit
+        run: |
+          pip install bandit
+          bandit -r core/
+
+      - name: Dependency scan (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit
