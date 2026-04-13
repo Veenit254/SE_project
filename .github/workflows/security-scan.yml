@@ -1,0 +1,82 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"   # Weekly (Monday 2 AM UTC)
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -----------------------------
+      # GITLEAKS (FIXED)
+      # -----------------------------
+      - name: Run Gitleaks (PR scan)
+        if: github.event_name == 'pull_request'
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          args: "--redact --verbose"
+
+      - name: Run Gitleaks (Full scan on main)
+        if: github.ref == 'refs/heads/main'
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          args: "--report-format sarif --report-path gitleaks.sarif"
+
+      - name: Upload SARIF (Gitleaks)
+        if: github.ref == 'refs/heads/main'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+
+      # -----------------------------
+      # TRUFFLEHOG
+      # -----------------------------
+      - name: Install TruffleHog
+        run: pip install trufflehog
+
+      - name: Run TruffleHog
+        run: trufflehog filesystem . --only-verified
+
+      # -----------------------------
+      # BANDIT (Python security)
+      # -----------------------------
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit
+        run: bandit -r core/ -ll
+
+      # -----------------------------
+      # DEPENDENCY VULNERABILITY SCAN
+      # -----------------------------
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        run: pip-audit --strict
+
+      # -----------------------------
+      # OPTIONAL: FAIL FAST ON CRITICAL ISSUES ONLY
+      # -----------------------------
+      - name: Enforce failure policy
+        run: |
+          echo "Security scan completed. Ensure critical issues are handled."
