@@ -1,0 +1,97 @@
+name: Security Scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * 1"   # Weekly scan
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------
+      # CHECKOUT (FULL HISTORY)
+      # -----------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # required for git-based scanners
+
+      # -----------------------------
+      # GITLEAKS (CLI - STABLE)
+      # -----------------------------
+      - name: Install Gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64.tar.gz | tar -xz
+          sudo mv gitleaks /usr/local/bin/
+          gitleaks version
+
+      - name: Run Gitleaks
+        run: |
+          gitleaks detect \
+            --source . \
+            --redact \
+            --verbose \
+            --exit-code 1
+
+      # -----------------------------
+      # TRUFFLEHOG (FIXED VERSION)
+      # -----------------------------
+      - name: Install TruffleHog
+        run: |
+          curl -sSL https://github.com/trufflesecurity/trufflehog/releases/latest/download/trufflehog_Linux_x86_64.tar.gz | tar -xz
+          sudo mv trufflehog /usr/local/bin/
+          trufflehog --version
+
+      - name: Run TruffleHog
+        run: |
+          trufflehog filesystem .
+
+      # -----------------------------
+      # BANDIT (PYTHON SECURITY)
+      # -----------------------------
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit
+        run: bandit -r core/ -ll
+
+      # -----------------------------
+      # DEPENDENCY SCAN (pip-audit)
+      # -----------------------------
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        run: pip-audit --strict
+
+      # -----------------------------
+      # TRIVY (FILESYSTEM SCAN)
+      # -----------------------------
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.0_Linux-64bit.deb
+          sudo dpkg -i trivy_0.50.0_Linux-64bit.deb
+
+      - name: Run Trivy
+        run: |
+          trivy fs --severity HIGH,CRITICAL .
+
+      # -----------------------------
+      # FINAL STATUS
+      # -----------------------------
+      - name: Security Scan Completed
+        run: echo "✅ All security checks passed"
