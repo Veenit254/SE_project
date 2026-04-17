@@ -60,7 +60,7 @@ This project follows the **GitFlow** workflow with the following branches:
 
 - **Frontend**: React.js (with Vite) / Vue.js
 - **Backend**: Node.js + Express.js
-- **Database**: MongoDB
+- **Database**: SQL
 - **Containerization**: Docker & Docker Compose
 - **Version Control**: Git + GitHub
 - **CI/CD**: GitHub Actions
@@ -69,14 +69,3 @@ This project follows the **GitFlow** workflow with the following branches:
 - **Other**: Postman (API testing), ESLint, Prettier
 
 ---
-
-**Made with ❤️ for Software Engineering Course/Project**
-
-Feel free to customize any section (especially the **Project Title** and **Problem Statement**) according to your exact project functionality.
-
-### Next Steps for You:
-1. Add your actual **Architecture Diagram** image to the repo (recommended in root or `docs/` folder) and update the image link.
-2. Replace placeholder details in **Problem Statement** with your specific project goals.
-3. If you are using a different tech stack (e.g., Next.js, Django, PostgreSQL, etc.), let me know and I’ll update the README accordingly.
-
-Would you like me to modify any section or make it more specific to your project? Just share more details about what the application actually does.
